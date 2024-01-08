@@ -1,134 +1,102 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { Plugin, App } from 'obsidian';
+import axios from 'axios'
+import { read } from 'fs';
 
-// Remember to rename these classes and interfaces!
 
-interface MyPluginSettings {
-	mySetting: string;
-}
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
-}
+export default class MyCaseHelper extends Plugin {
+	onload(): void {
+		// this.app.vault.on("create", doYourThing);
+		// this.app.vault.on("rename", doYourThing);
+		const app: App = this.app;
+		const command = {
+			id: 'id',
+			name: 'Generate Aliases',
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+			callback: async function () {
+				// const app: App = this.app;
+				const file = app.workspace.getActiveFile();
+				if (file != null) {
+					const aliasesString = await doYourThing(file?.name)
+					app.vault.process(file, (content) => {
 
-	async onload() {
-		await this.loadSettings();
+						//let content = await app.vault.read(file)
+						console.log(`content : ${content}`);
+						const pattern = /(?<=---[\s\w:\-]*)(?:aliases:(?:\s+ - [\w\sА-Яа-я]*)*)(?=[\s\w:\-]*---)/gmu
+						// if there is pattern, than replace
+						const searchResult = content.search(pattern)
+						if (searchResult != -1) {
+							console.log(`SearchResult ${searchResult}. There is aliases in file properties`)
+							content = content.replace(pattern, aliasesString);
+						}
+						// otherwise add it
+						else {
+							console.log(`SearchResult ${searchResult}. There is no aliases in file properties`)
+							const propertiesPattern = /---[\wА-Яа-я:\-\s]+---/gmu
+							const ind = content.search(propertiesPattern);
+							if (ind != -1) {
+								console.log(`Index of properties ${searchResult}. There is properties in file`)
 
-		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
-		// Perform additional things with the ribbon
-		ribbonIconEl.addClass('my-plugin-ribbon-class');
+								content = content.slice(0, ind + 3 + 1) + `\n${aliasesString}\n` + content.slice(ind + 3 + 1);
+							}
+							else {
+								console.log(`Index of properties ${searchResult}. There is no properties in file`)
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
+								content = `---\n${aliasesString}\n---` + content;
+							}
+						}
 
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'sample-editor-command',
-			name: 'Sample editor command',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				console.log(editor.getSelection());
-				editor.replaceSelection('Sample Editor Command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-sample-modal-complex',
-			name: 'Open sample modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
+						return content;
+					})
 				}
 			}
-		});
+		}
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
-	}
-
-	onunload() {
-
-	}
-
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-	}
-
-	async saveSettings() {
-		await this.saveData(this.settings);
+		this.addCommand(command);
 	}
 }
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
+async function doYourThing(filename: string): string {
+	// const filename: string = file.name;
+	//const re = /(?:[\s+]|\.md)/;
+	//const words = filename.split(re);
+	// for (const word of words) {
+	// 	console.log(word)
+	// 	console.log(JSON.stringify(await getWordInfo(word)))
+	// }
 
-	onOpen() {
-		const {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
+	let name = filename.slice(0, -3);
+	name = name.replace(/\s+/, "%20");
 
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
-	}
+	console.log('marker')
+	console.log(name)
+	const obj = (await getWordInfo(name));
+	console.log(JSON.stringify(obj));
+	const res = generateAliases(obj)
+	console.log(res);
+	return res;
+
 }
 
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+async function getWordInfo(word: string) {
+	const url = `https://ws3.morpher.ru/russian/declension?s=${word}&format=json`
+	console.log(url);
+	return ((await axios.get(url)).data)
+}
 
-	constructor(app: App, plugin: MyPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
+function generateAliases(obj: any): string {
+	let result = 'aliases:\n';
+	for (const prop in obj) {
+		if (prop != 'множественное') {
+			result += ` - ${obj[prop]}\n`;
+			result += ` - ${obj[prop].toLowerCase()}\n`
+		}
+		else {
+			for (const mprop in obj[prop]) {
+				result += ` - ${obj[prop][mprop]}\n`
+				result += ` - ${obj[prop][mprop].toLowerCase()}\n`
+			}
+		}
 	}
-
-	display(): void {
-		const {containerEl} = this;
-
-		containerEl.empty();
-
-		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
-	}
+	return result;
 }
