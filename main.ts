@@ -42,7 +42,7 @@ export default class MyCaseHelper extends Plugin {
 							else {
 								console.log(`Index of properties ${searchResult}. There is no properties in file`)
 
-								content = `---\n${aliasesString}\n---` + content;
+								content = `---\n${aliasesString}\n---\n` + content;
 							}
 						}
 
@@ -56,7 +56,7 @@ export default class MyCaseHelper extends Plugin {
 	}
 }
 
-async function doYourThing(filename: string): string {
+async function doYourThing(filename: string) {
 	// const filename: string = file.name;
 	//const re = /(?:[\s+]|\.md)/;
 	//const words = filename.split(re);
